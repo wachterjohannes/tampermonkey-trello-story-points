@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
-// @match        https://trello.com/c/*
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
@@ -108,12 +107,17 @@
 
     // Add story points bubble to card
     function addStoryPointsToCard(card) {
+        if (!card) return;
+        
         // Remove existing bubbles to avoid duplicates
-        const existingBubbles = card.querySelectorAll('.story-points-bubble, .story-points-bubble').forEach(el => {
-            if (el.parentNode && el.parentNode.querySelector('.story-points-bubble')) {
-                el.parentNode.remove();
+        const existingBubbles = card.querySelectorAll('.story-points-bubble');
+        existingBubbles.forEach(bubble => {
+            // Remove the container if it contains bubbles, otherwise just the bubble
+            const container = bubble.parentNode;
+            if (container && container.children.length === 1 && container.querySelector('.story-points-bubble')) {
+                container.remove();
             } else {
-                el.remove();
+                bubble.remove();
             }
         });
 
@@ -139,6 +143,8 @@
 
     // Calculate and display totals in list header
     function updateListTotals(list) {
+        if (!list) return;
+        
         const listHeader = list.querySelector('.list-header-name, [data-testid="list-name"]');
         if (!listHeader) return;
 
@@ -191,6 +197,11 @@
 
     // Process all cards and lists
     function processBoard() {
+        // Only proceed if we're on a board page
+        if (!isBoardPage()) {
+            return;
+        }
+
         // Add story points to all cards
         const cards = document.querySelectorAll('.list-card, [data-testid="trello-card"]');
         cards.forEach(addStoryPointsToCard);
@@ -200,8 +211,19 @@
         lists.forEach(updateListTotals);
     }
 
+    // Check if we're on a board page
+    function isBoardPage() {
+        return window.location.pathname.startsWith('/b/') && 
+               (document.querySelector('.board-canvas, [data-testid="board"]') !== null);
+    }
+
     // Initialize the script
     function init() {
+        // Only run on board pages
+        if (!isBoardPage()) {
+            return;
+        }
+
         addStyles();
         processBoard();
 
