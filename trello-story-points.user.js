@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    https://asapo.at
-// @version      0.19
+// @version      0.22
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       @wachterjohannes
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.19');
+    console.log('Trello Story Points: Script loaded, version 0.22');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -38,17 +38,6 @@
             line-height: 1.2;
         }
         
-        .story-points-bubble::before {
-            content: '';
-            position: absolute;
-            top: 1px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60%;
-            height: 1px;
-            background: rgba(255, 255, 255, 0.4);
-            border-radius: 1px;
-        }
         
         .story-points-used {
             background: linear-gradient(135deg, #61bd4f 0%, #70c95e 100%);
@@ -148,7 +137,6 @@
             display: inline-flex;
             flex-direction: row-reverse;
             gap: 2px;
-            margin-left: 6px;
             vertical-align: top;
         }
         
@@ -231,7 +219,7 @@
         window.storyPointsUpdateButton = updateButtonText;
     }
 
-    // Parse story points from card title
+    // Parse story points from card title and return cleaned title
     function parseStoryPoints(title) {
         const estimateMatch = title.match(ESTIMATE_REGEX);
         const usedMatch = title.match(USED_REGEX);
@@ -243,6 +231,7 @@
         
         let estimate = null;
         let used = null;
+        let cleanTitle = title;
         
         // Parse estimate - handle numbers and "?"
         if (estimateMatch) {
@@ -252,6 +241,8 @@
             } else {
                 estimate = parseFloat(estimateStr);
             }
+            // Remove estimate from title
+            cleanTitle = cleanTitle.replace(ESTIMATE_REGEX, '').trim();
         }
         
         // Parse used points - handle numbers and "?"
@@ -262,9 +253,11 @@
             } else {
                 used = parseFloat(usedStr);
             }
+            // Remove used points from title
+            cleanTitle = cleanTitle.replace(USED_REGEX, '').trim();
         }
         
-        return { estimate, used };
+        return { estimate, used, cleanTitle };
     }
 
     // Create story points bubble element
@@ -310,6 +303,9 @@
         const points = parseStoryPoints(title);
         
         if (points) {
+            // Update the title element text to remove story points
+            titleElement.textContent = points.cleanTitle;
+            
             const container = createStoryPointsBubble(points.estimate, points.used);
             
             // Insert the container right after the card name/title element
