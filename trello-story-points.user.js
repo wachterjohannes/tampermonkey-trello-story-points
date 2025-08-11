@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    https://asapo.at
-// @version      0.24
+// @version      1.0-rc1
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       @wachterjohannes
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.24');
+    console.log('Trello Story Points: Script loaded, version 1.0-rc1');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
