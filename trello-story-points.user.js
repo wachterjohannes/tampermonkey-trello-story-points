@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      0.6
+// @version      0.7
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.6');
+    console.log('Trello Story Points: Script loaded, version 0.7');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -141,7 +141,7 @@
             }
         });
 
-        const titleElement = card.querySelector('.list-card-title, [data-testid="card-name"]');
+        const titleElement = card.querySelector('[data-testid="card-name"]');
         if (!titleElement) return;
 
         const title = titleElement.textContent.trim();
@@ -181,7 +181,7 @@
         let cardCount = 0;
 
         cards.forEach((card, index) => {
-            const titleElement = card.querySelector('.list-card-title, [data-testid="card-name"]');
+            const titleElement = card.querySelector('[data-testid="card-name"]');
             if (titleElement) {
                 const title = titleElement.textContent.trim();
                 if (index < 3) { // Only log first 3 cards to avoid spam
@@ -293,35 +293,8 @@
         addStyles();
         processBoard();
 
-        // Set up MutationObserver to handle dynamic content changes
-        const observer = new MutationObserver((mutations) => {
-            let shouldUpdate = false;
-            
-            mutations.forEach((mutation) => {
-                // Check if cards were added/removed or titles changed
-                if (mutation.type === 'childList' || 
-                    (mutation.type === 'characterData' && 
-                     mutation.target.parentNode &&
-                     (mutation.target.parentNode.matches('.list-card-title, [data-testid="card-name"]') ||
-                      mutation.target.parentNode.matches('.list-header-name, [data-testid="list-name"]')))) {
-                    shouldUpdate = true;
-                }
-            });
-
-            if (shouldUpdate) {
-                // Debounce updates to avoid excessive processing
-                clearTimeout(window.storyPointsUpdateTimeout);
-                window.storyPointsUpdateTimeout = setTimeout(processBoard, 300);
-            }
-        });
-
-        // Observe the entire board for changes
-        const boardContainer = document.querySelector('#board, [data-testid="board-wrapper"]') || document.body;
-        observer.observe(boardContainer, {
-            childList: true,
-            subtree: true,
-            characterData: true
-        });
+        // Temporarily disable MutationObserver to stop infinite loop
+        console.log('Trello Story Points: MutationObserver disabled to prevent infinite loop');
     }
 
     // Wait for Trello to load, then initialize
