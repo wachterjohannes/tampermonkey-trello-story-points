@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      0.8
+// @version      0.9
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.8');
+    console.log('Trello Story Points: Script loaded, version 0.9');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -280,7 +280,7 @@
     }
 
     // Wait for content to load with retry logic
-    function waitForContent(maxRetries = 10, retryDelay = 1000) {
+    function waitForContent(maxRetries = 20, retryDelay = 1000) {
         console.log('Trello Story Points: Waiting for content to load...');
         
         let attempts = 0;
@@ -288,17 +288,23 @@
             attempts++;
             console.log(`Trello Story Points: Attempt ${attempts}/${maxRetries}`);
             
-            if (!isBoardPage()) {
-                console.log('Trello Story Points: Not a board page, exiting');
+            // Check if we're on a board URL first
+            const isBoard = window.location.pathname.startsWith('/b/');
+            if (!isBoard) {
+                console.log('Trello Story Points: Not a board URL, exiting');
                 return;
             }
             
+            // Look for any board-related elements
+            const boardElements = document.querySelectorAll('.board-canvas, #board, .board-wrapper, .board-main-content');
             const cards = document.querySelectorAll('[data-testid="trello-card"]');
             const lists = document.querySelectorAll('.list, [data-testid="list"]');
+            const cardNames = document.querySelectorAll('[data-testid="card-name"]');
             
-            console.log(`Trello Story Points: Found ${cards.length} cards, ${lists.length} lists`);
+            console.log(`Trello Story Points: Board elements: ${boardElements.length}, Cards: ${cards.length}, Lists: ${lists.length}, Card names: ${cardNames.length}`);
             
-            if (cards.length > 0 && lists.length > 0) {
+            // Success criteria: at least some board structure exists
+            if (boardElements.length > 0 && (cards.length > 0 || cardNames.length > 0)) {
                 console.log('Trello Story Points: Content loaded! Processing...');
                 addStyles();
                 processBoard();
@@ -329,11 +335,11 @@
         console.log('Trello Story Points: Waiting for DOM content loaded');
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Trello Story Points: DOM loaded, starting init');
-            setTimeout(init, 2000); // Initial delay then start retry logic
+            setTimeout(init, 5000); // Increase initial delay // Initial delay then start retry logic
         });
     } else {
         console.log('Trello Story Points: Document already loaded, starting init');
-        setTimeout(init, 2000);
+        setTimeout(init, 5000); // Increase initial delay
     }
 
     // Also try to reinitialize when navigating between boards
@@ -342,7 +348,7 @@
         if (window.location.href !== currentUrl) {
             console.log('Trello Story Points: URL changed from', currentUrl, 'to', window.location.href);
             currentUrl = window.location.href;
-            setTimeout(init, 2000); // Start retry logic for new board
+            setTimeout(init, 5000); // Increase initial delay // Start retry logic for new board
         }
     }, 1000);
 
