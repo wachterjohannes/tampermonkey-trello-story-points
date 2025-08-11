@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -12,9 +12,9 @@
 (function() {
     'use strict';
 
-    // Regex to extract story points from title format: "(<estimate>) Title [<used-points>]"
-    const STORY_POINTS_REGEX = /\((\d+(?:\.\d+)?)\).*?\[(\d+(?:\.\d+)?)\]/;
-    const ESTIMATE_ONLY_REGEX = /\((\d+(?:\.\d+)?)\)/;
+    // Regex patterns for flexible story points parsing
+    const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
+    const USED_REGEX = /\[([?\d]+(?:\.\d+)?)\]/;      // Matches [3] or [?]
 
     // CSS styles for story points bubbles and totals
     const styles = `
@@ -65,44 +65,62 @@
 
     // Parse story points from card title
     function parseStoryPoints(title) {
-        const fullMatch = title.match(STORY_POINTS_REGEX);
-        if (fullMatch) {
-            return {
-                estimate: parseFloat(fullMatch[1]),
-                used: parseFloat(fullMatch[2])
-            };
+        const estimateMatch = title.match(ESTIMATE_REGEX);
+        const usedMatch = title.match(USED_REGEX);
+        
+        // Return null if no story points found at all
+        if (!estimateMatch && !usedMatch) {
+            return null;
         }
         
-        // Check for estimate only
-        const estimateMatch = title.match(ESTIMATE_ONLY_REGEX);
+        let estimate = 0;
+        let used = 0;
+        
+        // Parse estimate - handle numbers and "?"
         if (estimateMatch) {
-            return {
-                estimate: parseFloat(estimateMatch[1]),
-                used: 0
-            };
+            const estimateStr = estimateMatch[1];
+            if (estimateStr === '?') {
+                estimate = '?';
+            } else {
+                estimate = parseFloat(estimateStr);
+            }
         }
         
-        return null;
+        // Parse used points - handle numbers and "?"
+        if (usedMatch) {
+            const usedStr = usedMatch[1];
+            if (usedStr === '?') {
+                used = '?';
+            } else {
+                used = parseFloat(usedStr);
+            }
+        }
+        
+        return { estimate, used };
     }
 
     // Create story points bubble element
     function createStoryPointsBubble(estimate, used = null) {
-        const bubble = document.createElement('span');
-        bubble.className = 'story-points-bubble';
-        bubble.textContent = estimate.toString();
+        const container = document.createElement('span');
         
-        if (used !== null && used > 0) {
+        // Create estimate bubble if present
+        if (estimate !== 0 && estimate !== null) {
+            const bubble = document.createElement('span');
+            bubble.className = 'story-points-bubble';
+            bubble.textContent = estimate.toString();
+            container.appendChild(bubble);
+        }
+        
+        // Create used points bubble if present
+        if (used !== 0 && used !== null) {
             const usedBubble = document.createElement('span');
             usedBubble.className = 'story-points-bubble story-points-used';
             usedBubble.textContent = used.toString();
-            
-            const container = document.createElement('span');
-            container.appendChild(bubble);
             container.appendChild(usedBubble);
-            return container;
         }
         
-        return bubble;
+        // Return single bubble if only one, or container if multiple
+        return container.children.length === 1 ? container.firstChild : container;
     }
 
     // Add story points bubble to card
@@ -163,8 +181,13 @@
                 const title = titleElement.textContent.trim();
                 const points = parseStoryPoints(title);
                 if (points) {
-                    totalEstimate += points.estimate;
-                    totalUsed += points.used;
+                    // Only add numeric values to totals, skip "?" values
+                    if (points.estimate !== 0 && points.estimate !== '?' && !isNaN(points.estimate)) {
+                        totalEstimate += points.estimate;
+                    }
+                    if (points.used !== 0 && points.used !== '?' && !isNaN(points.used)) {
+                        totalUsed += points.used;
+                    }
                     cardCount++;
                 }
             }
