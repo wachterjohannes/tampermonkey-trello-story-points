@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -164,7 +164,10 @@
         if (!list) return;
         
         const listHeader = list.querySelector('.list-header-name, [data-testid="list-name"]');
-        if (!listHeader) return;
+        if (!listHeader) {
+            console.log('Trello Story Points: No list header found');
+            return;
+        }
 
         // Remove existing totals
         const existingTotals = listHeader.parentNode.querySelectorAll('.story-points-total');
@@ -193,6 +196,8 @@
             }
         });
 
+        console.log('Trello Story Points: List has', cardCount, 'cards with story points. Est:', totalEstimate, 'Used:', totalUsed);
+        
         if (cardCount > 0) {
             const headerContainer = listHeader.parentNode;
             if (!headerContainer.classList.contains('story-points-header')) {
@@ -212,9 +217,10 @@
             usedTotal.title = `Total used story points: ${totalUsed}`;
 
             headerContainer.appendChild(estimateTotal);
-            if (totalUsed > 0) {
-                headerContainer.appendChild(usedTotal);
-            }
+            // Show used total if there are any used points (including 0)
+            headerContainer.appendChild(usedTotal);
+            
+            console.log('Trello Story Points: Added totals to list header');
         }
     }
 
@@ -231,6 +237,7 @@
 
         // Update totals for all lists
         const lists = document.querySelectorAll('.list, [data-testid="list"]');
+        console.log('Trello Story Points: Found', lists.length, 'lists');
         lists.forEach(updateListTotals);
     }
 
