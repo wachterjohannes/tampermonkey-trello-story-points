@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    https://asapo.at
-// @version      0.13
+// @version      0.14
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       @wachterjohannes
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.13');
+    console.log('Trello Story Points: Script loaded, version 0.14');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -24,16 +24,18 @@
             display: inline-block;
             background: linear-gradient(135deg, #026aa7 0%, #0079bf 100%);
             color: white;
-            border-radius: 14px;
-            padding: 3px 10px;
-            font-size: 11px;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
             font-weight: 600;
-            margin: 2px 4px 2px 0;
-            min-width: 22px;
+            margin: 4px 4px 4px 0;
+            min-width: 16px;
+            max-width: 28px;
             text-align: center;
-            box-shadow: 0 1px 3px rgba(2, 106, 167, 0.3);
+            box-shadow: 0 1px 2px rgba(2, 106, 167, 0.3);
             border: 1px solid rgba(255, 255, 255, 0.2);
             position: relative;
+            line-height: 1.2;
         }
         
         .story-points-bubble::before {
@@ -75,9 +77,16 @@
         
         .story-points-header {
             display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .story-points-header-totals {
+            display: flex;
             align-items: center;
             flex-wrap: wrap;
             gap: 4px;
+            margin-top: 4px;
         }
         
         .story-points-update-button {
@@ -129,13 +138,32 @@
         
         /* Improved positioning within cards */
         [data-testid="trello-card"] .story-points-bubble {
-            margin-top: 4px;
-            vertical-align: top;
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            z-index: 10;
+        }
+        
+        /* Container for multiple bubbles */
+        .story-points-container {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            display: flex;
+            flex-direction: row-reverse;
+            gap: 2px;
+            z-index: 10;
+        }
+        
+        .story-points-container .story-points-bubble {
+            position: static;
+            margin: 0;
         }
         
         /* Better integration with Trello's card labels */
         .card-labels .story-points-bubble,
         [data-testid="card-labels"] .story-points-bubble {
+            position: static;
             margin: 2px 4px 2px 0;
             align-self: flex-start;
         }
@@ -244,7 +272,8 @@
 
     // Create story points bubble element
     function createStoryPointsBubble(estimate, used = null) {
-        const container = document.createElement('span');
+        const container = document.createElement('div');
+        container.className = 'story-points-container';
         
         // Create estimate bubble if present (include 0 values)
         if (estimate !== null && estimate !== undefined) {
@@ -262,8 +291,8 @@
             container.appendChild(usedBubble);
         }
         
-        // Return single bubble if only one, or container if multiple
-        return container.children.length === 1 ? container.firstChild : container;
+        // Return container (even for single bubble to maintain consistent positioning)
+        return container;
     }
 
     // Add story points bubble to card
@@ -276,32 +305,19 @@
         }
         if (!titleElement) return;
 
-        // Remove existing bubbles to avoid duplicates
-        const existingBubbles = card.querySelectorAll('.story-points-bubble');
-        existingBubbles.forEach(bubble => {
-            // Remove the container if it contains bubbles, otherwise just the bubble
-            const container = bubble.parentNode;
-            if (container && container.children.length === 1 && container.querySelector('.story-points-bubble')) {
-                container.remove();
-            } else {
-                bubble.remove();
-            }
-        });
+        // Remove existing containers to avoid duplicates
+        const existingContainers = card.querySelectorAll('.story-points-container');
+        existingContainers.forEach(container => container.remove());
 
         const title = titleElement.textContent.trim();
         const points = parseStoryPoints(title);
         
         if (points) {
-            const bubble = createStoryPointsBubble(points.estimate, points.used);
+            const container = createStoryPointsBubble(points.estimate, points.used);
             
-            // Find appropriate location to insert bubble
-            const labelsContainer = card.querySelector('.card-labels, [data-testid="card-labels"]');
-            if (labelsContainer) {
-                labelsContainer.appendChild(bubble);
-            } else {
-                // Insert at the beginning of the card
-                card.insertBefore(bubble, card.firstChild);
-            }
+            // Position container absolutely in the top-right corner of the card
+            card.style.position = 'relative'; // Ensure card has relative positioning
+            card.appendChild(container);
         }
     }
 
@@ -329,8 +345,8 @@
             return;
         }
 
-        // Remove existing totals
-        const existingTotals = listHeader.parentNode.querySelectorAll('.story-points-total');
+        // Remove existing totals containers
+        const existingTotals = listHeader.parentNode.querySelectorAll('.story-points-header-totals');
         existingTotals.forEach(el => el.remove());
 
         const cards = list.querySelectorAll('.list-card, [data-testid="card-name"]');
@@ -371,6 +387,17 @@
                 headerContainer.classList.add('story-points-header');
             }
 
+            // Create or find the totals container
+            let totalsContainer = headerContainer.querySelector('.story-points-header-totals');
+            if (!totalsContainer) {
+                totalsContainer = document.createElement('div');
+                totalsContainer.className = 'story-points-header-totals';
+                headerContainer.appendChild(totalsContainer);
+            } else {
+                // Clear existing totals
+                totalsContainer.innerHTML = '';
+            }
+
             // Create estimate total
             const estimateTotal = document.createElement('span');
             estimateTotal.className = 'story-points-total';
@@ -383,9 +410,9 @@
             usedTotal.textContent = `Used: ${totalUsed}`;
             usedTotal.title = `Total used story points: ${totalUsed}`;
 
-            headerContainer.appendChild(estimateTotal);
+            totalsContainer.appendChild(estimateTotal);
             // Show used total if there are any used points (including 0)
-            headerContainer.appendChild(usedTotal);
+            totalsContainer.appendChild(usedTotal);
             
             console.log('Trello Story Points: Added totals to list header');
         }
