@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    https://asapo.at
-// @version      0.14
+// @version      0.16
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       @wachterjohannes
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.14');
+    console.log('Trello Story Points: Script loaded, version 0.16');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -58,13 +58,13 @@
         .story-points-total {
             background: linear-gradient(135deg, #f2d600 0%, #ffd700 100%);
             color: #2c3e50;
-            padding: 5px 12px;
-            border-radius: 16px;
-            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
             font-weight: 600;
-            margin: 2px 6px;
+            margin: 2px 4px 2px 0;
             display: inline-block;
-            box-shadow: 0 2px 4px rgba(242, 214, 0, 0.25);
+            box-shadow: 0 1px 2px rgba(242, 214, 0, 0.25);
             border: 1px solid rgba(255, 255, 255, 0.3);
             text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
         }
@@ -146,13 +146,12 @@
         
         /* Container for multiple bubbles */
         .story-points-container {
-            position: absolute;
-            top: 6px;
-            right: 6px;
             display: flex;
             flex-direction: row-reverse;
             gap: 2px;
-            z-index: 10;
+            margin: 4px 8px 4px 0;
+            justify-content: flex-end;
+            clear: both;
         }
         
         .story-points-container .story-points-bubble {
@@ -315,9 +314,23 @@
         if (points) {
             const container = createStoryPointsBubble(points.estimate, points.used);
             
-            // Position container absolutely in the top-right corner of the card
-            card.style.position = 'relative'; // Ensure card has relative positioning
-            card.appendChild(container);
+            // Find the best place to insert the container - after images and title
+            // Try to find a text content area that's not an image
+            let insertionPoint = card;
+            
+            // Look for card content wrapper that comes after any images
+            const cardDetails = card.querySelector('[class*="card-detail"], [class*="list-card-details"]');
+            if (cardDetails) {
+                insertionPoint = cardDetails;
+            } else {
+                // Fallback: find the card name's container and insert after it
+                const cardNameContainer = card.querySelector('[data-testid="card-name"]')?.parentNode;
+                if (cardNameContainer) {
+                    insertionPoint = cardNameContainer;
+                }
+            }
+            
+            insertionPoint.appendChild(container);
         }
     }
 
