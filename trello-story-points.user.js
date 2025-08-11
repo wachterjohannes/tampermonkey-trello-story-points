@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Trello Story Points
-// @namespace    http://tampermonkey.net/
-// @version      0.11
+// @namespace    https://asapo.at
+// @version      0.13
 // @description  Display story points from Trello card titles and show totals in list headers
-// @author       You
+// @author       @wachterjohannes
 // @match        https://trello.com/b/*
 // @grant        none
 // @run-at       document-end
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.11');
+    console.log('Trello Story Points: Script loaded, version 0.13');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -22,61 +22,122 @@
     const styles = `
         .story-points-bubble {
             display: inline-block;
-            background: #026aa7;
+            background: linear-gradient(135deg, #026aa7 0%, #0079bf 100%);
             color: white;
-            border-radius: 12px;
-            padding: 2px 8px;
+            border-radius: 14px;
+            padding: 3px 10px;
             font-size: 11px;
-            font-weight: bold;
-            margin-right: 4px;
-            min-width: 20px;
+            font-weight: 600;
+            margin: 2px 4px 2px 0;
+            min-width: 22px;
             text-align: center;
+            box-shadow: 0 1px 3px rgba(2, 106, 167, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+        
+        .story-points-bubble::before {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 1px;
         }
         
         .story-points-used {
-            background: #61bd4f;
+            background: linear-gradient(135deg, #61bd4f 0%, #70c95e 100%);
+            box-shadow: 0 1px 3px rgba(97, 189, 79, 0.3);
         }
         
         .story-points-total {
-            background: #f2d600;
-            color: #000;
-            padding: 4px 8px;
-            border-radius: 4px;
+            background: linear-gradient(135deg, #f2d600 0%, #ffd700 100%);
+            color: #2c3e50;
+            padding: 5px 12px;
+            border-radius: 16px;
             font-size: 12px;
-            font-weight: bold;
-            margin-left: 8px;
+            font-weight: 600;
+            margin: 2px 6px;
             display: inline-block;
+            box-shadow: 0 2px 4px rgba(242, 214, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
+        }
+        
+        .story-points-total.story-points-used {
+            background: linear-gradient(135deg, #61bd4f 0%, #70c95e 100%);
+            color: white;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
         }
         
         .story-points-header {
             display: flex;
             align-items: center;
             flex-wrap: wrap;
+            gap: 4px;
         }
         
         .story-points-update-button {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            background: #026aa7;
+            background: linear-gradient(135deg, #026aa7 0%, #0079bf 100%);
             color: white;
             border: none;
-            border-radius: 6px;
-            padding: 8px 12px;
+            border-radius: 20px;
+            padding: 10px 16px;
             font-size: 12px;
-            font-weight: bold;
+            font-weight: 600;
             cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 12px rgba(2, 106, 167, 0.3);
             z-index: 9999;
-            transition: background-color 0.2s;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .story-points-update-button:hover {
-            background: #0079bf;
+            background: linear-gradient(135deg, #0079bf 0%, #026aa7 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(2, 106, 167, 0.4);
         }
         
         .story-points-update-button:active {
-            background: #005a8b;
+            background: linear-gradient(135deg, #005a8b 0%, #026aa7 100%);
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(2, 106, 167, 0.3);
+        }
+        
+        /* Add subtle animation for newly added bubbles */
+        @keyframes storyPointsFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        .story-points-bubble {
+            animation: storyPointsFadeIn 0.3s ease-out;
+        }
+        
+        /* Improved positioning within cards */
+        [data-testid="trello-card"] .story-points-bubble {
+            margin-top: 4px;
+            vertical-align: top;
+        }
+        
+        /* Better integration with Trello's card labels */
+        .card-labels .story-points-bubble,
+        [data-testid="card-labels"] .story-points-bubble {
+            margin: 2px 4px 2px 0;
+            align-self: flex-start;
         }
     `;
 
@@ -155,8 +216,8 @@
             return null;
         }
         
-        let estimate = 0;
-        let used = 0;
+        let estimate = null;
+        let used = null;
         
         // Parse estimate - handle numbers and "?"
         if (estimateMatch) {
@@ -185,16 +246,16 @@
     function createStoryPointsBubble(estimate, used = null) {
         const container = document.createElement('span');
         
-        // Create estimate bubble if present
-        if (estimate !== 0 && estimate !== null) {
+        // Create estimate bubble if present (include 0 values)
+        if (estimate !== null && estimate !== undefined) {
             const bubble = document.createElement('span');
             bubble.className = 'story-points-bubble';
             bubble.textContent = estimate.toString();
             container.appendChild(bubble);
         }
         
-        // Create used points bubble if present
-        if (used !== 0 && used !== null) {
+        // Create used points bubble if present (include 0 values)
+        if (used !== null && used !== undefined) {
             const usedBubble = document.createElement('span');
             usedBubble.className = 'story-points-bubble story-points-used';
             usedBubble.textContent = used.toString();
@@ -291,11 +352,11 @@
                 if (index < 3) {
                     console.log(`Trello Story Points: List card ${index + 1} parsed:`, points);
                 }
-                // Only add numeric values to totals, skip "?" values
-                if (points.estimate !== 0 && points.estimate !== '?' && !isNaN(points.estimate)) {
+                // Only add numeric values to totals, skip "?" values (but include 0)
+                if (points.estimate !== null && points.estimate !== '?' && !isNaN(points.estimate)) {
                     totalEstimate += points.estimate;
                 }
-                if (points.used !== 0 && points.used !== '?' && !isNaN(points.used)) {
+                if (points.used !== null && points.used !== '?' && !isNaN(points.used)) {
                     totalUsed += points.used;
                 }
                 cardCount++;
