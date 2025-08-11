@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    https://asapo.at
-// @version      0.16
+// @version      0.18
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       @wachterjohannes
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.16');
+    console.log('Trello Story Points: Script loaded, version 0.18');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -56,23 +56,22 @@
         }
         
         .story-points-total {
-            background: linear-gradient(135deg, #f2d600 0%, #ffd700 100%);
-            color: #2c3e50;
+            background: linear-gradient(135deg, #026aa7 0%, #0079bf 100%);
+            color: white;
             padding: 2px 6px;
             border-radius: 10px;
             font-size: 10px;
             font-weight: 600;
             margin: 2px 4px 2px 0;
             display: inline-block;
-            box-shadow: 0 1px 2px rgba(242, 214, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
+            box-shadow: 0 1px 2px rgba(2, 106, 167, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
         }
         
         .story-points-total.story-points-used {
             background: linear-gradient(135deg, #61bd4f 0%, #70c95e 100%);
-            color: white;
-            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 1px 2px rgba(97, 189, 79, 0.3);
         }
         
         .story-points-header {
@@ -314,23 +313,9 @@
         if (points) {
             const container = createStoryPointsBubble(points.estimate, points.used);
             
-            // Find the best place to insert the container - after images and title
-            // Try to find a text content area that's not an image
-            let insertionPoint = card;
-            
-            // Look for card content wrapper that comes after any images
-            const cardDetails = card.querySelector('[class*="card-detail"], [class*="list-card-details"]');
-            if (cardDetails) {
-                insertionPoint = cardDetails;
-            } else {
-                // Fallback: find the card name's container and insert after it
-                const cardNameContainer = card.querySelector('[data-testid="card-name"]')?.parentNode;
-                if (cardNameContainer) {
-                    insertionPoint = cardNameContainer;
-                }
-            }
-            
-            insertionPoint.appendChild(container);
+            // Insert the container at the very end of the card, after all existing content
+            // This ensures it appears below title, images, labels, etc.
+            card.appendChild(container);
         }
     }
 
