@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      0.7
+// @version      0.8
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.7');
+    console.log('Trello Story Points: Script loaded, version 0.8');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -279,22 +279,47 @@
         return isBoard && (boardElement !== null);
     }
 
+    // Wait for content to load with retry logic
+    function waitForContent(maxRetries = 10, retryDelay = 1000) {
+        console.log('Trello Story Points: Waiting for content to load...');
+        
+        let attempts = 0;
+        const checkContent = () => {
+            attempts++;
+            console.log(`Trello Story Points: Attempt ${attempts}/${maxRetries}`);
+            
+            if (!isBoardPage()) {
+                console.log('Trello Story Points: Not a board page, exiting');
+                return;
+            }
+            
+            const cards = document.querySelectorAll('[data-testid="trello-card"]');
+            const lists = document.querySelectorAll('.list, [data-testid="list"]');
+            
+            console.log(`Trello Story Points: Found ${cards.length} cards, ${lists.length} lists`);
+            
+            if (cards.length > 0 && lists.length > 0) {
+                console.log('Trello Story Points: Content loaded! Processing...');
+                addStyles();
+                processBoard();
+                return;
+            }
+            
+            if (attempts < maxRetries) {
+                console.log(`Trello Story Points: Content not ready, retrying in ${retryDelay}ms...`);
+                setTimeout(checkContent, retryDelay);
+            } else {
+                console.log('Trello Story Points: Max retries reached, giving up');
+            }
+        };
+        
+        checkContent();
+    }
+
     // Initialize the script
     function init() {
         console.log('Trello Story Points: init() called');
-        
-        // Only run on board pages
-        if (!isBoardPage()) {
-            console.log('Trello Story Points: Not a board page, exiting');
-            return;
-        }
-
-        console.log('Trello Story Points: Board page detected, processing...');
-        addStyles();
-        processBoard();
-
-        // Temporarily disable MutationObserver to stop infinite loop
-        console.log('Trello Story Points: MutationObserver disabled to prevent infinite loop');
+        waitForContent();
     }
 
     // Wait for Trello to load, then initialize
@@ -303,12 +328,12 @@
     if (document.readyState === 'loading') {
         console.log('Trello Story Points: Waiting for DOM content loaded');
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('Trello Story Points: DOM loaded, initializing in 3 seconds');
-            setTimeout(init, 3000); // Give Trello more time to render
+            console.log('Trello Story Points: DOM loaded, starting init');
+            setTimeout(init, 2000); // Initial delay then start retry logic
         });
     } else {
-        console.log('Trello Story Points: Document already loaded, initializing in 3 seconds');
-        setTimeout(init, 3000);
+        console.log('Trello Story Points: Document already loaded, starting init');
+        setTimeout(init, 2000);
     }
 
     // Also try to reinitialize when navigating between boards
@@ -317,7 +342,7 @@
         if (window.location.href !== currentUrl) {
             console.log('Trello Story Points: URL changed from', currentUrl, 'to', window.location.href);
             currentUrl = window.location.href;
-            setTimeout(init, 3000); // Give more time for new board to load
+            setTimeout(init, 2000); // Start retry logic for new board
         }
     }, 1000);
 
