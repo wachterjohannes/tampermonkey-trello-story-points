@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    https://asapo.at
-// @version      0.23
+// @version      0.24
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       @wachterjohannes
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.23');
+    console.log('Trello Story Points: Script loaded, version 0.24');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -344,19 +344,35 @@
         let totalUsed = 0;
         let cardCount = 0;
 
-        // Find card names within this specific list
+        // Find card names within this specific list - only count visible ones
         const cardNamesInList = list.querySelectorAll('[data-testid="card-name"]');
-        console.log(`Trello Story Points: List has ${cardNamesInList.length} card names`);
+        console.log(`Trello Story Points: List has ${cardNamesInList.length} card names total`);
         
+        let visibleCards = 0;
         cardNamesInList.forEach((titleElement, index) => {
+            // Check if the card is actually visible (not hidden by filters)
+            const card = titleElement.closest('[data-testid="trello-card"]');
+            if (!card) return;
+            
+            // Check if card is visible (not display:none or hidden by Trello filters)
+            const cardStyle = window.getComputedStyle(card);
+            const isVisible = cardStyle.display !== 'none' && 
+                             cardStyle.visibility !== 'hidden' && 
+                             card.offsetHeight > 0 && 
+                             card.offsetWidth > 0;
+            
+            if (!isVisible) return; // Skip hidden/filtered cards
+            
+            visibleCards++;
             const title = titleElement.textContent.trim();
-            if (index < 3) { // Only log first 3 cards to avoid spam
-                console.log(`Trello Story Points: List card ${index + 1} title: "${title}"`);
+            if (visibleCards <= 3) { // Only log first 3 visible cards to avoid spam
+                console.log(`Trello Story Points: List visible card ${visibleCards} title: "${title}"`);
             }
+            
             const points = parseStoryPoints(title);
             if (points) {
-                if (index < 3) {
-                    console.log(`Trello Story Points: List card ${index + 1} parsed:`, points);
+                if (visibleCards <= 3) {
+                    console.log(`Trello Story Points: List visible card ${visibleCards} parsed:`, points);
                 }
                 // Only add numeric values to totals, skip "?" values (but include 0)
                 if (points.estimate !== null && points.estimate !== '?' && !isNaN(points.estimate)) {
@@ -368,6 +384,8 @@
                 cardCount++;
             }
         });
+        
+        console.log(`Trello Story Points: List has ${visibleCards} visible cards out of ${cardNamesInList.length} total`);
 
         console.log('Trello Story Points: List has', cardCount, 'cards with story points. Est:', totalEstimate, 'Used:', totalUsed);
         
