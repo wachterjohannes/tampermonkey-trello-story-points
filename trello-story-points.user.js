@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      0.9
+// @version      0.11
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.9');
+    console.log('Trello Story Points: Script loaded, version 0.11');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -53,6 +53,31 @@
             align-items: center;
             flex-wrap: wrap;
         }
+        
+        .story-points-update-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #026aa7;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 9999;
+            transition: background-color 0.2s;
+        }
+        
+        .story-points-update-button:hover {
+            background: #0079bf;
+        }
+        
+        .story-points-update-button:active {
+            background: #005a8b;
+        }
     `;
 
     // Add CSS styles to page
@@ -63,6 +88,61 @@
             styleElement.textContent = styles;
             document.head.appendChild(styleElement);
         }
+    }
+
+    // Format time ago string
+    function formatTimeAgo(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return `${diffMins}min ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        return `${diffDays}d ago`;
+    }
+
+    // Create or update the floating update button
+    function createUpdateButton() {
+        let button = document.getElementById('story-points-update-button');
+        
+        if (!button) {
+            button = document.createElement('button');
+            button.id = 'story-points-update-button';
+            button.className = 'story-points-update-button';
+            button.title = 'Click to refresh story points';
+            document.body.appendChild(button);
+            
+            button.addEventListener('click', () => {
+                console.log('Trello Story Points: Manual refresh triggered');
+                processBoard();
+            });
+
+            // Set up automatic refresh every 5 minutes
+            setInterval(() => {
+                console.log('Trello Story Points: Auto-refresh triggered (5min interval)');
+                processBoard();
+            }, 5 * 60 * 1000); // 5 minutes
+        }
+        
+        // Initialize the last update time
+        window.storyPointsLastUpdate = new Date();
+        
+        function updateButtonText() {
+            const lastUpdate = window.storyPointsLastUpdate || new Date();
+            const timeAgo = formatTimeAgo(lastUpdate);
+            button.textContent = `SP • ${timeAgo}`;
+            button.title = `Story Points updated ${timeAgo}\nClick to refresh\nAuto-refresh every 5 minutes`;
+        }
+        
+        // Update button text immediately and then every minute
+        updateButtonText();
+        setInterval(updateButtonText, 60000);
+        
+        // Store the update function globally so we can call it from processBoard
+        window.storyPointsUpdateButton = updateButtonText;
     }
 
     // Parse story points from card title
@@ -126,9 +206,15 @@
     }
 
     // Add story points bubble to card
-    function addStoryPointsToCard(card) {
+    function addStoryPointsToCard(card, titleElement = null) {
         if (!card) return;
         
+        // Find title element if not provided
+        if (!titleElement) {
+            titleElement = card.querySelector('[data-testid="card-name"]');
+        }
+        if (!titleElement) return;
+
         // Remove existing bubbles to avoid duplicates
         const existingBubbles = card.querySelectorAll('.story-points-bubble');
         existingBubbles.forEach(bubble => {
@@ -140,9 +226,6 @@
                 bubble.remove();
             }
         });
-
-        const titleElement = card.querySelector('[data-testid="card-name"]');
-        if (!titleElement) return;
 
         const title = titleElement.textContent.trim();
         const points = parseStoryPoints(title);
@@ -167,7 +250,21 @@
         
         const listHeader = list.querySelector('.list-header-name, [data-testid="list-name"]');
         if (!listHeader) {
-            console.log('Trello Story Points: No list header found');
+            // Try more selectors for list headers
+            const alternateSelectors = [
+                'h2', '.list-header h2', '[data-testid="list-header"]', 
+                '.list-header-name-assist', '.js-list-name-input'
+            ];
+            
+            for (const selector of alternateSelectors) {
+                const header = list.querySelector(selector);
+                if (header) {
+                    console.log(`Trello Story Points: Found list header with selector: ${selector}`);
+                    return updateListTotals(list); // Retry with found header
+                }
+            }
+            
+            console.log('Trello Story Points: No list header found with any selector');
             return;
         }
 
@@ -180,29 +277,28 @@
         let totalUsed = 0;
         let cardCount = 0;
 
-        cards.forEach((card, index) => {
-            const titleElement = card.querySelector('[data-testid="card-name"]');
-            if (titleElement) {
-                const title = titleElement.textContent.trim();
-                if (index < 3) { // Only log first 3 cards to avoid spam
-                    console.log(`Trello Story Points: Card ${index + 1} title: "${title}"`);
+        // Find card names within this specific list
+        const cardNamesInList = list.querySelectorAll('[data-testid="card-name"]');
+        console.log(`Trello Story Points: List has ${cardNamesInList.length} card names`);
+        
+        cardNamesInList.forEach((titleElement, index) => {
+            const title = titleElement.textContent.trim();
+            if (index < 3) { // Only log first 3 cards to avoid spam
+                console.log(`Trello Story Points: List card ${index + 1} title: "${title}"`);
+            }
+            const points = parseStoryPoints(title);
+            if (points) {
+                if (index < 3) {
+                    console.log(`Trello Story Points: List card ${index + 1} parsed:`, points);
                 }
-                const points = parseStoryPoints(title);
-                if (points) {
-                    if (index < 3) {
-                        console.log(`Trello Story Points: Card ${index + 1} parsed:`, points);
-                    }
-                    // Only add numeric values to totals, skip "?" values
-                    if (points.estimate !== 0 && points.estimate !== '?' && !isNaN(points.estimate)) {
-                        totalEstimate += points.estimate;
-                    }
-                    if (points.used !== 0 && points.used !== '?' && !isNaN(points.used)) {
-                        totalUsed += points.used;
-                    }
-                    cardCount++;
+                // Only add numeric values to totals, skip "?" values
+                if (points.estimate !== 0 && points.estimate !== '?' && !isNaN(points.estimate)) {
+                    totalEstimate += points.estimate;
                 }
-            } else if (index < 3) {
-                console.log(`Trello Story Points: Card ${index + 1} has no title element`);
+                if (points.used !== 0 && points.used !== '?' && !isNaN(points.used)) {
+                    totalUsed += points.used;
+                }
+                cardCount++;
             }
         });
 
@@ -241,17 +337,24 @@
             return;
         }
 
-        // Add story points to all cards
-        const cards = document.querySelectorAll('.list-card, [data-testid="trello-card"]');
-        console.log('Trello Story Points: Found', cards.length, 'cards total');
-        console.log('Trello Story Points: Card selectors:', {
-            '.list-card': document.querySelectorAll('.list-card').length,
-            '[data-testid="trello-card"]': document.querySelectorAll('[data-testid="trello-card"]').length,
-            '.card': document.querySelectorAll('.card').length,
-            '[data-testid="card-name"]': document.querySelectorAll('[data-testid="card-name"]').length,
-            '.list-card-title': document.querySelectorAll('.list-card-title').length
+        // Find all card name elements (these are the actual titles)
+        const cardNames = document.querySelectorAll('[data-testid="card-name"]');
+        console.log('Trello Story Points: Found', cardNames.length, 'card names total');
+        
+        // Debug first few card names
+        cardNames.forEach((cardName, index) => {
+            if (index < 3) {
+                console.log(`Trello Story Points: Card ${index + 1} title: "${cardName.textContent.trim()}"`);
+                const points = parseStoryPoints(cardName.textContent.trim());
+                console.log(`Trello Story Points: Card ${index + 1} parsed:`, points);
+            }
+            
+            // Add bubbles to card names (find parent card and add bubble)
+            const card = cardName.closest('[data-testid="trello-card"]');
+            if (card) {
+                addStoryPointsToCard(card, cardName);
+            }
         });
-        cards.forEach(addStoryPointsToCard);
 
         // Update totals for all lists
         const lists = document.querySelectorAll('.list, [data-testid="list"]');
@@ -262,6 +365,12 @@
             }
             updateListTotals(list);
         });
+
+        // Update the button timestamp
+        if (window.storyPointsUpdateButton) {
+            window.storyPointsLastUpdate = new Date();
+            window.storyPointsUpdateButton();
+        }
     }
 
     // Check if we're on a board page
@@ -307,6 +416,7 @@
             if (boardElements.length > 0 && (cards.length > 0 || cardNames.length > 0)) {
                 console.log('Trello Story Points: Content loaded! Processing...');
                 addStyles();
+                createUpdateButton();
                 processBoard();
                 return;
             }
