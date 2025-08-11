@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -246,8 +246,15 @@
     // Check if we're on a board page
     function isBoardPage() {
         const isBoard = window.location.pathname.startsWith('/b/');
-        const boardElement = document.querySelector('.board-canvas, [data-testid="board"]');
+        const boardElement = document.querySelector('.board-canvas, [data-testid="board"], #board, .board-wrapper');
         console.log('Trello Story Points: URL check:', isBoard, 'Board element found:', !!boardElement);
+        console.log('Trello Story Points: Available selectors:', {
+            '.board-canvas': !!document.querySelector('.board-canvas'),
+            '[data-testid="board"]': !!document.querySelector('[data-testid="board"]'),
+            '#board': !!document.querySelector('#board'),
+            '.board-wrapper': !!document.querySelector('.board-wrapper'),
+            '.board-main-content': !!document.querySelector('.board-main-content')
+        });
         return isBoard && (boardElement !== null);
     }
 
@@ -302,12 +309,12 @@
     if (document.readyState === 'loading') {
         console.log('Trello Story Points: Waiting for DOM content loaded');
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('Trello Story Points: DOM loaded, initializing in 1 second');
-            setTimeout(init, 1000); // Give Trello time to render
+            console.log('Trello Story Points: DOM loaded, initializing in 3 seconds');
+            setTimeout(init, 3000); // Give Trello more time to render
         });
     } else {
-        console.log('Trello Story Points: Document already loaded, initializing in 1 second');
-        setTimeout(init, 1000);
+        console.log('Trello Story Points: Document already loaded, initializing in 3 seconds');
+        setTimeout(init, 3000);
     }
 
     // Also try to reinitialize when navigating between boards
@@ -316,7 +323,7 @@
         if (window.location.href !== currentUrl) {
             console.log('Trello Story Points: URL changed from', currentUrl, 'to', window.location.href);
             currentUrl = window.location.href;
-            setTimeout(init, 1500); // Give more time for new board to load
+            setTimeout(init, 3000); // Give more time for new board to load
         }
     }, 1000);
 
