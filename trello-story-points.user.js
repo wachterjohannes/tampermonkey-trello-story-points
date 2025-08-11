@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.6
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       You
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.5');
+    console.log('Trello Story Points: Script loaded, version 0.6');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -180,12 +180,18 @@
         let totalUsed = 0;
         let cardCount = 0;
 
-        cards.forEach(card => {
+        cards.forEach((card, index) => {
             const titleElement = card.querySelector('.list-card-title, [data-testid="card-name"]');
             if (titleElement) {
                 const title = titleElement.textContent.trim();
+                if (index < 3) { // Only log first 3 cards to avoid spam
+                    console.log(`Trello Story Points: Card ${index + 1} title: "${title}"`);
+                }
                 const points = parseStoryPoints(title);
                 if (points) {
+                    if (index < 3) {
+                        console.log(`Trello Story Points: Card ${index + 1} parsed:`, points);
+                    }
                     // Only add numeric values to totals, skip "?" values
                     if (points.estimate !== 0 && points.estimate !== '?' && !isNaN(points.estimate)) {
                         totalEstimate += points.estimate;
@@ -195,6 +201,8 @@
                     }
                     cardCount++;
                 }
+            } else if (index < 3) {
+                console.log(`Trello Story Points: Card ${index + 1} has no title element`);
             }
         });
 
@@ -235,12 +243,25 @@
 
         // Add story points to all cards
         const cards = document.querySelectorAll('.list-card, [data-testid="trello-card"]');
+        console.log('Trello Story Points: Found', cards.length, 'cards total');
+        console.log('Trello Story Points: Card selectors:', {
+            '.list-card': document.querySelectorAll('.list-card').length,
+            '[data-testid="trello-card"]': document.querySelectorAll('[data-testid="trello-card"]').length,
+            '.card': document.querySelectorAll('.card').length,
+            '[data-testid="card-name"]': document.querySelectorAll('[data-testid="card-name"]').length,
+            '.list-card-title': document.querySelectorAll('.list-card-title').length
+        });
         cards.forEach(addStoryPointsToCard);
 
         // Update totals for all lists
         const lists = document.querySelectorAll('.list, [data-testid="list"]');
         console.log('Trello Story Points: Found', lists.length, 'lists');
-        lists.forEach(updateListTotals);
+        lists.forEach((list, index) => {
+            if (index < 3) {
+                console.log(`Trello Story Points: Processing list ${index + 1}`);
+            }
+            updateListTotals(list);
+        });
     }
 
     // Check if we're on a board page
