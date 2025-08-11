@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello Story Points
 // @namespace    https://asapo.at
-// @version      0.18
+// @version      0.19
 // @description  Display story points from Trello card titles and show totals in list headers
 // @author       @wachterjohannes
 // @match        https://trello.com/b/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('Trello Story Points: Script loaded, version 0.18');
+    console.log('Trello Story Points: Script loaded, version 0.19');
 
     // Regex patterns for flexible story points parsing
     const ESTIMATE_REGEX = /\(([?\d]+(?:\.\d+)?)\)/;  // Matches (5) or (?)
@@ -145,12 +145,11 @@
         
         /* Container for multiple bubbles */
         .story-points-container {
-            display: flex;
+            display: inline-flex;
             flex-direction: row-reverse;
             gap: 2px;
-            margin: 4px 8px 4px 0;
-            justify-content: flex-end;
-            clear: both;
+            margin-left: 6px;
+            vertical-align: top;
         }
         
         .story-points-container .story-points-bubble {
@@ -313,9 +312,14 @@
         if (points) {
             const container = createStoryPointsBubble(points.estimate, points.used);
             
-            // Insert the container at the very end of the card, after all existing content
-            // This ensures it appears below title, images, labels, etc.
-            card.appendChild(container);
+            // Insert the container right after the card name/title element
+            // This positions it inline with the title, not at the bottom of the card
+            if (titleElement && titleElement.parentNode) {
+                titleElement.parentNode.appendChild(container);
+            } else {
+                // Fallback: append to card if we can't find title parent
+                card.appendChild(container);
+            }
         }
     }
 
